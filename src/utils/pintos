@@ -33,6 +33,8 @@ our ($loader_fn);		# Bootstrap loader.
 our (%geometry);		# IDE disk geometry.
 our ($align);			# Partition alignment.
 
+my $format;
+
 parse_command_line ();
 prepare_scratch_disk ();
 find_disks ();
@@ -85,6 +87,7 @@ sub parse_command_line {
 		    "filesys-size=s" => \&set_part,
 		    "scratch-size=s" => \&set_part,
 		    "swap-size=s" => \&set_part,
+            "f" => \$format,
 
 		    "kernel-from=s" => \&set_part,
 		    "filesys-from=s" => \&set_part,
