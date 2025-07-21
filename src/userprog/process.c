@@ -20,6 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool setup_stack (void **esp, int argc, char **argv);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -54,6 +55,16 @@ start_process (void *file_name_)
   struct intr_frame if_;
   bool success;
 
+  // 커맨드 인자 파싱
+    char *argv[128];
+    int argc = 0;
+    char *save_ptr;
+    char *token = strtok_r(file_name, " ", &save_ptr);
+    while (token != NULL) {
+      argv[argc++] = token;
+      token = strtok_r(NULL, " ", &save_ptr);
+    }
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -65,6 +76,9 @@ start_process (void *file_name_)
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+
+  if(!setup_stack(&if_.esp,argc,argv))
+    thread_exit();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -195,7 +209,6 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -301,9 +314,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
-  /* Set up stack. */
-  if (!setup_stack (esp))
-    goto done;
+  // /* Set up stack. */
+  // if (!setup_stack (esp))
+  //   goto done;
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -427,7 +440,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, int argc, char **argv) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -436,8 +449,38 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
+      if (success){
         *esp = PHYS_BASE;
+        char *arg_ptrs[128];
+        // 문자열 stack에 넣기
+        for (int i = argc - 1; i >= 0; i--) {
+            size_t len = strlen(argv[i]) + 1;
+            *esp -= len;
+            memcpy(*esp, argv[i], len);
+            arg_ptrs[i] = *esp;
+        }
+        // 2. word-align
+        uintptr_t align = (uintptr_t)(*esp) % 4;
+        if (align) {
+          *esp -= align;
+          memset(*esp, 0, align);
+        }
+        // 3. argv 포인터들 stack에 복사
+        *esp -= sizeof(char *);
+        *(char **)(*esp) = 0;
+        for(int i = argc - 1; i >= 0; i--){
+          *esp -= sizeof(char *);
+          *(char **)(*esp) = arg_ptrs[i];
+        }
+          // 4. argv 포인터 주소, argc, return address
+          char **argv_addr = *esp;
+          *esp -= sizeof(char **);
+          *(char ***)*esp = argv_addr;
+          *esp -= sizeof(int);
+          *(int *)*esp = argc;
+          *esp -= sizeof(void *);
+          *(void **)*esp = 0; // fake return address
+      }
       else
         palloc_free_page (kpage);
     }
