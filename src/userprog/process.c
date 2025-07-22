@@ -52,6 +52,15 @@ start_process (void *file_name_)
 {
   char *file_name = file_name_;
   struct intr_frame if_;
+  char* argv[100];
+  int argc = 0;
+  char* save_ptr;
+  char* token = strtok_r(file_name_, " ", &save_ptr);
+  while(token != NULL){
+    argv[argc++] = token;
+    token = strtok_r(NULL, " ", &save_ptr);
+  }
+
   bool success;
 
   /* Initialize interrupt frame and load executable. */
@@ -60,6 +69,35 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+  
+  for(int i = argc-1; i >= 0;i--){
+    if_.esp -= (strlen(argv[i]) + 1);
+    memcpy(if_.esp, argv[i], strlen(argv[i])+1);
+    argv[i] = if_.esp;
+  }
+
+  int32_t align = (uintptr_t)(if_.esp)%4;
+  if(align){
+    if_.esp -= align;
+    memset(if_.esp,0,align);
+  }
+
+  if_.esp -= sizeof(char *);
+  *(char **)(if_.esp) = 0;
+  for(int i = argc - 1;i >= 0; i--){
+    if_.esp -= sizeof(char *);
+    *(char **)if_.esp = argv[i];
+  }
+  
+  char** argv_ptr = if_.esp;
+  if_.esp -= sizeof(char **);
+  *(char ***)if_.esp = argv_ptr;
+  
+  if_.esp -= sizeof(int);
+  *(int *)if_.esp = argc;
+
+  if_.esp -= sizeof(void *);
+  *(void **)if_.esp = 0;
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
