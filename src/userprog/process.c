@@ -459,7 +459,7 @@ setup_stack (void **esp, int argc, char **argv)
             memcpy(*esp, argv[i], len);
             arg_ptrs[i] = *esp;
         }
-        // 2. word-align
+        // 2. word-align 
         uintptr_t align = (uintptr_t)(*esp) % 4;
         if (align) {
           *esp -= align;
