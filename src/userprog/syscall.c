@@ -3,9 +3,9 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "lib/user/syscall.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -17,9 +17,11 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  switch (*((uint32_t*)f->esp)){
+  int syscall_number = *(int*)f->esp;
+  switch (syscall_number)
+  {
     case SYS_CREATE:
-    case SYS_OPEN:
+    case SYS_OPEN:{
       char* file_name = *(char**)(f->esp + 4);
       struct file* file = filesys_open(file_name);
       if (file == NULL){
@@ -29,16 +31,62 @@ syscall_handler (struct intr_frame *f UNUSED)
         f->eax = allocate_fd(file);
       }
       break;
-    case SYS_READ:
-    case SYS_WRITE:
+    }
+    case SYS_READ:{
+      int fd = *(int*)(f->esp + 4);        // 첫 번째 인자
+      void *buffer = *(void**)(f->esp + 8); // 두 번째 인자  
+      unsigned size = *(unsigned*)(f->esp + 12); // 세 번째 인자
+
+      if(fd == STDIN_FILENO){
+        unsigned bytes_read = 0;
+        char *buf = (char*)buffer;
+
+        for(unsigned i = 0; i < size; i++){
+          int c = input_getc();
+          if(c == -1){
+            break;
+          }
+          buf[i] = (char)c;
+          bytes_read++;
+        }
+        f->eax = bytes_read;
+      }else{
+        struct file *file = get_file(fd);
+        if(file == NULL){
+          f->eax = -1;
+        }else{
+          f->eax = file_read(file,buffer,size);
+        }
+      }
+      break;
+    }
+    case SYS_WRITE:{
+      int fd = *(int*)(f->esp + 4);        // 첫 번째 인자
+      void *buffer = *(void**)(f->esp + 8); // 두 번째 인자  
+      unsigned size = *(unsigned*)(f->esp + 12); // 세 번째 인자
+
+      if(fd == STDOUT_FILENO){
+        putbuf(buffer,size);
+        f->eax = size;
+      }else{
+        struct file *file = get_file(fd);
+        if(file == NULL){
+          f->eax = -1;
+        }else{
+          f->eax = file_write(file,buffer,size);
+        }
+      }
+      break;
+    }
     case SYS_SEEK:
-    case SYS_CLOSE:
+    case SYS_CLOSE:{
       int fd = *(int *)(f->esp+4);
       file_close(get_file(fd));
       break;
+    }
     case SYS_FILESIZE:
       
-    case SYS_TELL:
+    case SYS_TELL:{
       int fd = *(int *)(f->esp+4);
       struct file* file = get_file(fd);
       if (file == NULL){
@@ -48,8 +96,10 @@ syscall_handler (struct intr_frame *f UNUSED)
         f->eax = file->pos;
       }
       break;
+    }
     case SYS_REMOVE:
   }
-  // printf ("system call!\n");
+  
+  printf ("system call!\n");
   // thread_exit ();
 }
