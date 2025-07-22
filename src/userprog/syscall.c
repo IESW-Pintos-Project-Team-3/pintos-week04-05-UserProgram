@@ -5,7 +5,7 @@
 #include "threads/thread.h"
 #include "lib/user/syscall.h"
 #include "filesys/file.h"
-
+#include "filesys/filesys.h"
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -20,6 +20,23 @@ syscall_handler (struct intr_frame *f UNUSED)
   int syscall_number = *(int*)f->esp;
   switch (syscall_number)
   {
+    case SYS_CREATE:{
+      char* file_name = *(char**)(f->esp + 4);
+      unsigned size = *(unsigned *)(f->esp + 8);
+      f->eax = filesys_create(file_name, size);
+      break;
+    }
+    case SYS_OPEN:{
+      char* file_name = *(char**)(f->esp + 4);
+      struct file* file = filesys_open(file_name);
+      if (file == NULL){
+        f->eax = -1;
+      }
+      else{
+        f->eax = allocate_fd(file);
+      }
+      break;
+    }
     case SYS_READ:{
       int fd = *(int*)(f->esp + 4);        // 첫 번째 인자
       void *buffer = *(void**)(f->esp + 8); // 두 번째 인자  
@@ -66,7 +83,36 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
       break;
     }
+    case SYS_SEEK:
+    case SYS_CLOSE:{
+      int fd = *(int *)(f->esp+4);
+      file_close(get_file(fd));
+      break;
+    }
+    case SYS_FILESIZE:
+      
+    case SYS_TELL:{
+      int fd = *(int *)(f->esp+4);
+      struct file* file = get_file(fd);
+      if (file == NULL){
+        f->eax = -1;
+      }
+      else{
+        f->eax = file_tell(file);
+      }
+      break;
+    }
+    case SYS_REMOVE:{
+      char* file_name = *(char**)(f->esp + 4);
+      f->eax = filesys_remove(file_name);
+      break;
+    }
+    case SYS_EXIT:{
+      thread_exit ();
+      break;
+    }
   }
-  printf ("system call!\n");
+  
+  // printf ("system call!\n");
   // thread_exit ();
 }
