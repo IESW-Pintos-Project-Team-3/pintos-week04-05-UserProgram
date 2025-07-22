@@ -83,14 +83,30 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
       break;
     }
-    case SYS_SEEK:
+    case SYS_SEEK:{
+      int fd = *(int *)(f->esp+4);
+      unsigned position = *(unsigned *)(f->esp+8);
+      struct file* file = get_file(fd);
+      if(file == NULL){
+        file_seek(file,position);
+      }
+      break;
+    }
     case SYS_CLOSE:{
       int fd = *(int *)(f->esp+4);
       file_close(get_file(fd));
       break;
     }
-    case SYS_FILESIZE:
-      
+    case SYS_FILESIZE:{
+      int fd = *(int *)(f->esp+4);
+      struct file* file = get_file(fd);
+      if(file == NULL){
+        f->eax = -1;
+      }else{
+        f->eax = file_length(file);
+      }
+      break;
+    }
     case SYS_TELL:{
       int fd = *(int *)(f->esp+4);
       struct file* file = get_file(fd);
