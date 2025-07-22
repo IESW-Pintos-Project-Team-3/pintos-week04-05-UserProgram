@@ -102,13 +102,15 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
       break;
     }
-    case SYS_REMOVE:
+    case SYS_REMOVE:{
       char* file_name = *(char**)(f->esp + 4);
       f->eax = filesys_remove(file_name);
       break;
-    case SYS_EXIT:
+    }
+    case SYS_EXIT:{
       thread_exit ();
       break;
+    }
   }
   
   // printf ("system call!\n");
