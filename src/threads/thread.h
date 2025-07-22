@@ -97,7 +97,7 @@ struct thread
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
-
+   struct file* fd_table[128];
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -138,4 +138,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+int allocate_fd(struct file*);
+void free_fd(int);
+struct file* get_file(int);
 #endif /* threads/thread.h */

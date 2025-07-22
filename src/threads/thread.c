@@ -579,6 +579,36 @@ allocate_tid (void)
   return tid;
 }
 
+int 
+allocate_fd(struct file* file)
+{
+  struct thread *cur = thread_current ();
+
+  for (int fd = 3; fd < 128; fd++){
+    if (cur->fd_table[fd] == NULL){
+      cur->fd_table[fd] = file;
+      return fd;
+    }
+  }
+
+  return -1;
+}
+
+void
+free_fd(int fd)
+{
+  struct thread *cur = thread_current ();
+
+  cur->fd_table[fd] = NULL;
+}
+
+struct file*
+get_file(int fd){
+  struct thread *cur = thread_current ();
+
+  return fd > 2 ? cur->fd_table[fd] : NULL;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
