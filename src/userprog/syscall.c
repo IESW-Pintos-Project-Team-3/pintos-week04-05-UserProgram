@@ -87,7 +87,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       int fd = *(int *)(f->esp+4);
       unsigned position = *(unsigned *)(f->esp+8);
       struct file* file = get_file(fd);
-      if(file == NULL){
+      if(file != NULL){
         file_seek(file,position);
       }
       break;
