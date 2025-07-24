@@ -104,9 +104,26 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for(int i = 0; i < 1000000000;i++);
-  return -1;
-}
+  // for(int i = 0; i < 1000000000;i++);
+  // return -1;
+
+  struct thread *cur = thread_current();
+  for(struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)){
+    struct thread *t = list_entry(e, struct thread, childelem);
+    if(t->tid == child_tid){
+        while (1){
+          if(t->status == THREAD_ZOMBIE){
+            int child_exit_status = t->exit_status;
+            palloc_free_page(t);
+            printf("exit_status:%d\n",child_exit_status);
+            return child_exit_status;
+          }
+          sema_down(&t->sema);
+        }
+      }
+    }
+    return -1;
+  }
 
 /* Free the current process's resources. */
 void
