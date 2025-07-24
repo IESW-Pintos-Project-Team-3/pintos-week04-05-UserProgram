@@ -40,7 +40,9 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_WAIT:{
-
+      pid_t pid = *(int *)(f->esp + 4);
+      f->eax = process_wait(pid);
+      printf("f->eax : %d\n",f->eax);
       break;
     }
     case SYS_CREATE:{
