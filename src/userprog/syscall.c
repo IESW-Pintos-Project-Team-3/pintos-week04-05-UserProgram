@@ -15,11 +15,34 @@ syscall_init (void)
 }
 
 static void
-syscall_handler (struct intr_frame *f UNUSED) 
+syscall_handler (struct intr_frame *f) 
 {
   int syscall_number = *(int*)f->esp;
   switch (syscall_number)
   {
+    case SYS_HALT:{
+      shutdown_power_off();
+      NOT_REACHED();
+      break;
+    }
+    case SYS_EXIT:{
+      int status = *(int *)(f->esp + 4);
+      struct thread *t = thread_current();
+      // msg("%s: exit(%d)", t->name, status);
+      t->exit_status = status;
+      thread_exit();
+      NOT_REACHED();
+      break;
+    }
+    case SYS_EXEC:{
+      char* file_name = *(char**)(f->esp + 4);
+      f->eax = process_execute(file_name);
+      break;
+    }
+    case SYS_WAIT:{
+
+      break;
+    }
     case SYS_CREATE:{
       char* file_name = *(char**)(f->esp + 4);
       unsigned size = *(unsigned *)(f->esp + 8);
@@ -121,10 +144,6 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_REMOVE:{
       char* file_name = *(char**)(f->esp + 4);
       f->eax = filesys_remove(file_name);
-      break;
-    }
-    case SYS_EXIT:{
-      thread_exit ();
       break;
     }
   }

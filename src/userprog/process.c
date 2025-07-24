@@ -15,12 +15,13 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+static void set_parsing(int argc, char** argv, void (**esp));
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -42,6 +43,7 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+
   return tid;
 }
 
@@ -69,40 +71,16 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-  
-  for(int i = argc-1; i >= 0;i--){
-    if_.esp -= (strlen(argv[i]) + 1);
-    memcpy(if_.esp, argv[i], strlen(argv[i])+1);
-    argv[i] = if_.esp;
-  }
 
-  int32_t align = (uintptr_t)(if_.esp)%4;
-  if(align){
-    if_.esp -= align;
-    memset(if_.esp,0,align);
-  }
-
-  if_.esp -= sizeof(char *);
-  *(char **)(if_.esp) = 0;
-  for(int i = argc - 1;i >= 0; i--){
-    if_.esp -= sizeof(char *);
-    *(char **)if_.esp = argv[i];
-  }
-  
-  char** argv_ptr = if_.esp;
-  if_.esp -= sizeof(char **);
-  *(char ***)if_.esp = argv_ptr;
-  
-  if_.esp -= sizeof(int);
-  *(int *)if_.esp = argc;
-
-  if_.esp -= sizeof(void *);
-  *(void **)if_.esp = 0;
-
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+  
+  set_parsing(argc, argv, &if_.esp);
+  // hex_dump(0, if_.esp, 128, true);
+  // printf("calling hex_dump\n");
+  /* If load failed, quit. */
+  palloc_free_page (file_name);
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -126,7 +104,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  for(int i=0;i<1000000000;i++);
+  for(int i = 0; i < 1000000000;i++);
   return -1;
 }
 
@@ -136,7 +114,28 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-
+  /*If the child is a zombie, retrieve the resources, 
+    otherwise connect the parent. */
+  for (struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list);){
+    struct thread * t = list_entry(e, struct thread, childelem);
+    e = list_remove(e);
+    if(t->status == THREAD_ZOMBIE){
+      palloc_free_page (t);
+    }
+    else{
+      /* Correct ordering here is crucial.
+         we must insert child process into grandparent's child_list
+         so that process have right parent. */
+      list_push_back(&cur->parent->child_list, &t->childelem);
+      t->parent = cur->parent;
+    }
+  }
+  // printf("finish child wait\n");
+  /*Close all files that process opened*/
+  for (int i = 0; i < 128; i++){
+    file_close(get_file(i));
+  }
+  // printf("finish close files\n");
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -153,6 +152,12 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+    intr_disable();
+    // cur->status = THREAD_ZOMBIE;
+    sema_up(&cur->sema);
+    cur->status = THREAD_ZOMBIE;
+    __schedule();
+    NOT_REACHED();
 }
 
 /* Sets up the CPU for running user code in the current
@@ -501,4 +506,36 @@ install_page (void *upage, void *kpage, bool writable)
      address, then map our page there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+void
+set_parsing(int argc, char** argv, void (**esp)){
+  for(int i = argc-1; i >= 0;i--){
+    *esp -= (strlen(argv[i]) + 1);
+    memcpy(*esp, argv[i], strlen(argv[i])+1);
+    argv[i] = *esp;
+  }
+
+  int32_t align = (uintptr_t)(*esp)%4;
+  if(align){
+    *esp -= align;
+    memset(*esp,0,align);
+  }
+
+  *esp -= sizeof(char *);
+  *(char **)(*esp) = 0;
+  for(int i = argc - 1;i >= 0; i--){
+    *esp -= sizeof(char *);
+    *(char **)*esp = argv[i];
+  }
+  
+  char** argv_ptr = *esp;
+  *esp -= sizeof(char **);
+  *(char ***)*esp = argv_ptr;
+  
+  *esp -= sizeof(int);
+  *(int *)*esp = argc;
+
+  *esp -= sizeof(void *);
+  *(void **)*esp = 0;
 }
