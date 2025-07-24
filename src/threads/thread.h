@@ -154,4 +154,6 @@ void free_fd(int);
 struct file* get_file(int);
 
 void __schedule();
+
+struct thread *get_thread_by_tid(tid_t);
 #endif /* threads/thread.h */
