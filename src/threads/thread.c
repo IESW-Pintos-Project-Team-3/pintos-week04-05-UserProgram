@@ -624,13 +624,13 @@ __schedule()
 struct thread *
 get_thread_by_tid(tid_t t)
 {
-  for (struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)){
-    struct thread *cur = list_entry(e, struct thread, childelem);
+  for (struct list_elem *e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)){
+    struct thread *cur = list_entry(e, struct thread, allelem);
     if (cur->tid == t){
       return cur;
     }
   }
-  
+
   return NULL;
 }
 /* Offset of `stack' member within `struct thread'.
