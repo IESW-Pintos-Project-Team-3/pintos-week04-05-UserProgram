@@ -28,7 +28,6 @@ syscall_handler (struct intr_frame *f)
     case SYS_EXIT:{
       int status = *(int *)(f->esp + 4);
       struct thread *t = thread_current();
-      // msg("%s: exit(%d)", t->name, status);
       t->exit_status = status;
       thread_exit();
       NOT_REACHED();
@@ -42,7 +41,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_WAIT:{
       pid_t pid = *(int *)(f->esp + 4);
       f->eax = process_wait(pid);
-      printf("f->eax : %d\n",f->eax);
+      // printf("f->eax : %d\n",f->eax);
       break;
     }
     case SYS_CREATE:{
