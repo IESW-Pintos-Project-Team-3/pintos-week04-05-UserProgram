@@ -46,8 +46,9 @@ process_execute (const char *file_name)
   
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
-  struct thread *t = get_trhead_by_tid(tid);
+  struct thread *t = get_thread_by_tid(tid);
   t->parent = parent;
+
   list_push_back(&parent->child_list, &t->childelem);
 
   return tid;
@@ -119,6 +120,7 @@ process_wait (tid_t child_tid UNUSED)
     if(t->tid == child_tid){
         while (1){
           if(t->status == THREAD_ZOMBIE){
+            list_remove(e);
             int child_exit_status = t->exit_status;
             palloc_free_page(t);
             printf("exit_status:%d\n",child_exit_status);
@@ -178,6 +180,7 @@ process_exit (void)
       // cur->status = THREAD_ZOMBIE;
       sema_up(&cur->sema);
       cur->status = THREAD_ZOMBIE;
+      list_remove(&cur->allelem);
       __schedule();
       NOT_REACHED();
     }
