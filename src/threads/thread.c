@@ -197,12 +197,6 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-#ifdef USERPROG
-  /*Set parent <-> child*/
-  struct thread *parent = thread_current();
-  t->parent = parent;
-  list_push_back(&parent->child_list, &t->childelem);
-#endif
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -625,6 +619,19 @@ void
 __schedule()
 {
   schedule();
+}
+
+struct thread *
+get_thread_by_tid(tid_t t)
+{
+  for (struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)){
+    struct thread *cur = list_entry(e, struct thread, childelem);
+    if (cur->tid == t){
+      return cur;
+    }
+  }
+  
+  return NULL;
 }
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

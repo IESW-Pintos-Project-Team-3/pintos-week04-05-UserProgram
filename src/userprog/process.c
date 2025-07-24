@@ -43,6 +43,12 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
+  
+  /*Set parent <-> child*/
+  struct thread *parent = thread_current();
+  struct thread *t = get_trhead_by_tid(tid);
+  t->parent = parent;
+  list_push_back(&parent->child_list, &t->childelem);
 
   return tid;
 }
@@ -105,7 +111,7 @@ int
 process_wait (tid_t child_tid UNUSED) 
 {
   for(int i = 0; i < 1000000000;i++);
-  return -1;
+  return child_tid;
 }
 
 /* Free the current process's resources. */
@@ -151,13 +157,13 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+      intr_disable();
+      // cur->status = THREAD_ZOMBIE;
+      sema_up(&cur->sema);
+      cur->status = THREAD_ZOMBIE;
+      __schedule();
+      NOT_REACHED();
     }
-    intr_disable();
-    // cur->status = THREAD_ZOMBIE;
-    sema_up(&cur->sema);
-    cur->status = THREAD_ZOMBIE;
-    __schedule();
-    NOT_REACHED();
 }
 
 /* Sets up the CPU for running user code in the current
