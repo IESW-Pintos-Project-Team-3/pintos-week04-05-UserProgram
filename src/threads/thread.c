@@ -197,7 +197,12 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+#ifdef USERPROG
+  /*Set parent <-> child*/
+  struct thread *parent = thread_current();
+  t->parent = parent;
+  list_push_back(&parent->child_list, &t->childelem);
+#endif
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -462,6 +467,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
+#ifdef USERPROG
+  list_init(&t->child_list);
+  sema_init(&t->sema, 0);
+#endif
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -609,6 +620,12 @@ get_file(int fd){
   return fd > 2 ? cur->fd_table[fd] : NULL;
 }
 
+/*Function for call schedule from other source code*/
+void
+__schedule()
+{
+  schedule();
+}
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

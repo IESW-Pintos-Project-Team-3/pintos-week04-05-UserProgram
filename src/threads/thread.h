@@ -4,13 +4,16 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-
+#ifdef USERPROG
+#include "threads/synch.h"
+#endif
 /* States in a thread's life cycle. */
 enum thread_status
   {
     THREAD_RUNNING,     /* Running thread. */
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
+    THREAD_ZOMBIE,     /* Waiting for parent to reap itself. */
     THREAD_DYING        /* About to be destroyed. */
   };
 
@@ -96,8 +99,16 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct thread* parent;              /*Parent thread's address*/
+    struct list child_list;             /*Child process list*/
+    struct list_elem childelem;         /* List element for child list. */
+    struct semaphore sema;              /*For parents that wait child process*/
+    int exit_status;                    /*Status for parents*/
 #endif
-   struct file* fd_table[128];
+
+#ifdef FILESYS
+    struct file* fd_table[128];         /*File descriptor table*/
+#endif
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
@@ -141,4 +152,6 @@ int thread_get_load_avg (void);
 int allocate_fd(struct file*);
 void free_fd(int);
 struct file* get_file(int);
+
+void __schedule();
 #endif /* threads/thread.h */
