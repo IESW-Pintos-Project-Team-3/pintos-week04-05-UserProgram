@@ -3,9 +3,11 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
 #include "lib/user/syscall.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -34,7 +36,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_EXEC:{
-      char* file_name = *(char**)(f->esp + 4);
+      char *file_name = *(char**)(f->esp + 4);
       f->eax = process_execute(file_name);
       break;
     }
@@ -45,19 +47,23 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_CREATE:{
-      char* file_name = *(char**)(f->esp + 4);
+      char *file_name = *(char**)(f->esp + 4);
       unsigned size = *(unsigned *)(f->esp + 8);
       f->eax = filesys_create(file_name, size);
       break;
     }
     case SYS_OPEN:{
-      char* file_name = *(char**)(f->esp + 4);
-      struct file* file = filesys_open(file_name);
+      char *file_name = *(char**)(f->esp + 4);
+      if (file_name == NULL || !is_user_vaddr(file_name) || pagedir_get_page(thread_current()->pagedir, pg_round_down(file_name)) == NULL){
+        f->eax = -1;
+        break;
+      }
+      struct file *file = filesys_open(file_name);
       if (file == NULL){
         f->eax = -1;
       }
       else{
-        f->eax = allocate_fd(file);
+         f->eax = allocate_fd(file);
       }
       break;
     }
@@ -65,6 +71,16 @@ syscall_handler (struct intr_frame *f)
       int fd = *(int*)(f->esp + 4);        // 첫 번째 인자
       void *buffer = *(void**)(f->esp + 8); // 두 번째 인자  
       unsigned size = *(unsigned*)(f->esp + 12); // 세 번째 인자
+
+      if (fd < 0 || fd >= 128){
+        f->eax = -1;
+        break;
+      }
+
+      if (!is_user_vaddr(buffer) || pagedir_get_page(thread_current()->pagedir, pg_round_down(buffer)) == NULL){
+        f->eax = -1;
+        break;
+      }
 
       if(fd == STDIN_FILENO){
         unsigned bytes_read = 0;
@@ -94,6 +110,16 @@ syscall_handler (struct intr_frame *f)
       void *buffer = *(void**)(f->esp + 8); // 두 번째 인자  
       unsigned size = *(unsigned*)(f->esp + 12); // 세 번째 인자
 
+      if (fd < 0 || fd >= 128){
+        f->eax = -1;
+        break;
+      }
+      
+      if (!is_user_vaddr(buffer) || pagedir_get_page(thread_current()->pagedir, pg_round_down(buffer)) == NULL){
+        f->eax = -1;
+        break;
+      }
+
       if(fd == STDOUT_FILENO){
         putbuf(buffer,size);
         f->eax = size;
@@ -110,7 +136,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_SEEK:{
       int fd = *(int *)(f->esp+4);
       unsigned position = *(unsigned *)(f->esp+8);
-      struct file* file = get_file(fd);
+      struct file *file = get_file(fd);
       if(file != NULL){
         file_seek(file,position);
       }
@@ -118,7 +144,11 @@ syscall_handler (struct intr_frame *f)
     }
     case SYS_CLOSE:{
       int fd = *(int *)(f->esp+4);
-      file_close(get_file(fd));
+      struct file *file = get_file(fd);
+      if (file != NULL){
+        file_close(file);
+        thread_current()->fd_table[fd] = NULL;
+      }
       break;
     }
     case SYS_FILESIZE:{
@@ -133,7 +163,7 @@ syscall_handler (struct intr_frame *f)
     }
     case SYS_TELL:{
       int fd = *(int *)(f->esp+4);
-      struct file* file = get_file(fd);
+      struct file *file = get_file(fd);
       if (file == NULL){
         f->eax = -1;
       }
@@ -143,7 +173,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_REMOVE:{
-      char* file_name = *(char**)(f->esp + 4);
+      char *file_name = *(char**)(f->esp + 4);
       f->eax = filesys_remove(file_name);
       break;
     }
