@@ -10,38 +10,37 @@
 
 static void syscall_handler (struct intr_frame *);
 
-static inline int
-get_user (const uint8_t *uaddr)
-{
-  int result;
-  asm ("movl $1f, %0; movzbl %1, %0; 1:"
-       : "=&a" (result) : "m" (*uaddr));
-  return result;
-};
+// static inline int
+// get_user (const uint8_t *uaddr)
+// {
+//   int result;
+//   asm ("movl $1f, %0; movzbl %1, %0; 1:"
+//        : "=&a" (result) : "m" (*uaddr));
+//   return result;
+// };
 
 /*일단 여기다 만듦 나중에 필요하면 다른 곳에 선언, 정의
   Check the address is valid */
-static bool validate_esp(struct intr_frame *f, int count, int k){
-  for(int i = 0; i < count; i++){
-      if(!is_user_vaddr(f->esp + i*4 + k) || get_user(f->esp + i*4 + k) == -1){
-        return false;
-      }
-      if(!is_user_vaddr(f->esp + i*4 + k + 1) || get_user(f->esp + i*4 + k + 1) == -1){
-        return false;
-      }
-      if(!is_user_vaddr(f->esp + i*4 + k + 2) || get_user(f->esp + i*4 + k + 2) == -1){
-        return false;
-      }
-      if(!is_user_vaddr(f->esp + i*4 + k + 3) || get_user(f->esp + i*4 + k + 3) == -1){
-        return false;
-      }
+static bool validate_esp(void* ptr, int count){
+  if (ptr == NULL){
+    return false;
   }
+  const void *start = ptr;
+  const void *end  = ptr + count*4;
+  for (const void *addr = pg_round_down(start); addr < end; addr += PGSIZE){
+    if (!is_user_vaddr(addr) || pagedir_get_page(thread_current()->pagedir, addr) == NULL){
+      return false;
+    }
+  }
+
   return true;
 }
 
 static inline bool validate_string(char* str){
-  for(int i = 0; i < READDIR_MAX_LEN;i++){
-    if(!is_user_vaddr(str + i) || get_user(str + i) == -1){
+  int i = 0;
+  struct thread *cur = thread_current();
+  for(; ;i++){
+    if(!is_user_vaddr(str + i) ||  pagedir_get_page(cur->pagedir, pg_round_down(str + i)) == NULL){
         return false;
     }
 
@@ -49,14 +48,14 @@ static inline bool validate_string(char* str){
       return true;
     }
   }
-
-  return false;
 }
 
 static inline bool validate_buffer(void* buf, unsigned size){
-  for(int i = 0; i < size; i++){
-    if(!is_user_vaddr(buf + i) || get_user(buf + i) == -1){
-        return false;
+  const void *start = buf;
+  const void *end = buf + size;
+  for(const void *addr = pg_round_down(start); addr < end; addr += PGSIZE){
+    if (!is_user_vaddr(addr) || pagedir_get_page(thread_current()->pagedir, addr) == NULL){
+      return false;
     }
   }
 
@@ -83,7 +82,7 @@ syscall_handler (struct intr_frame *f)
   //   __exit(-1);
   //   return;
   // }
-  validate_esp(f, 1, 0);
+  validate_esp(f->esp, 1);
 
   int syscall_number = *(int*)f->esp;
   switch (syscall_number)
@@ -94,7 +93,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_EXIT:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -103,7 +102,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_EXEC:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -116,7 +115,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_WAIT:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -126,7 +125,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_CREATE:{
-      if (!validate_esp(f, 2, 4)){
+      if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
       }
 
@@ -140,7 +139,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_OPEN:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -159,7 +158,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_READ:{
-      if (!validate_esp(f, 3, 4)){
+      if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
       }
 
@@ -199,7 +198,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_WRITE:{
-      if (!validate_esp(f, 3, 4)){
+      if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
       }
 
@@ -209,7 +208,7 @@ syscall_handler (struct intr_frame *f)
       if(!validate_buffer(buffer, size)){
         __exit(-1);
       }
-      
+
       if (fd < 0 || fd >= 128){
         f->eax = -1;
         break;
@@ -229,7 +228,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_SEEK:{
-      if (!validate_esp(f, 2, 4)){
+      if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
       }
       
@@ -242,7 +241,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_CLOSE:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -255,7 +254,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_FILESIZE:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -269,7 +268,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_TELL:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
@@ -284,7 +283,7 @@ syscall_handler (struct intr_frame *f)
       break;
     }
     case SYS_REMOVE:{
-      if (!validate_esp(f, 1, 4)){
+      if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
       }
 
