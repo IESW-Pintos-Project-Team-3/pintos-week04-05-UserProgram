@@ -144,7 +144,11 @@ syscall_handler (struct intr_frame *f)
     }
     case SYS_CLOSE:{
       int fd = *(int *)(f->esp+4);
-      file_close(get_file(fd));
+      struct file *file = get_file(fd);
+      if (file != NULL){
+        file_close(file);
+        thread_current()->fd_table[fd] = NULL;
+      }
       break;
     }
     case SYS_FILESIZE:{
