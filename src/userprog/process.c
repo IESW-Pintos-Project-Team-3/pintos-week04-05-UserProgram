@@ -215,6 +215,7 @@ process_exit (void)
       __schedule();
       NOT_REACHED();
     }
+  sema_up(&cur->sema);
 }
 
 /* Sets up the CPU for running user code in the current
