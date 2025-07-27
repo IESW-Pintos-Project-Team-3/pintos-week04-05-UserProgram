@@ -54,6 +54,19 @@ process_execute (const char *file_name)
   t->parent = parent;
 
   list_push_back(&parent->child_list, &t->childelem);
+  sema_up(&t->sema);
+
+  thread_yield();
+
+  sema_down(&t->sema);
+  if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
+    list_remove(&t->childelem);    //remove from child_list
+    list_remove(&t->allelem);      //remove from all_list
+    int child_exit_status = t->exit_status;
+    // printf("%s: exit(%d)\n", t->name, child_exit_status);
+    palloc_free_page(t);
+    return child_exit_status;
+  }
 
   return tid;
 }
@@ -63,6 +76,8 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  sema_down(&thread_current()->sema);
+  
   char *file_name = file_name_;
   struct intr_frame if_;
   char* argv[100];
@@ -83,15 +98,22 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  if (!success) 
+  /* If load failed, quit. */
+  if (!success){ 
+    thread_current()->exit_status = -1;
+    palloc_free_page (file_name);
     thread_exit ();
+  }
+  
+  sema_up(&thread_current()->sema);
   
   set_parsing(argc, argv, &if_.esp);
+  
+  /*Must free page after parsing!!*/
+  palloc_free_page (file_name);
+  
   // hex_dump(0, if_.esp, 128, true);
   // printf("calling hex_dump\n");
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
-
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
