@@ -146,9 +146,10 @@ process_wait (tid_t child_tid UNUSED)
     if(t->tid == child_tid){
         while (1){
           if(t->status == THREAD_ZOMBIE){
-            list_remove(e);
+            list_remove(e);             //remove from child_list
+            list_remove(&t->allelem);   //remove from all_list
             int child_exit_status = t->exit_status;
-            printf("%s: exit(%d)\n", t->name, child_exit_status);
+            // printf("%s: exit(%d)\n", t->name, child_exit_status);
             palloc_free_page(t);
             // printf("exit_status:%d\n",child_exit_status);
             return child_exit_status;
@@ -172,6 +173,7 @@ process_exit (void)
     struct thread * t = list_entry(e, struct thread, childelem);
     e = list_remove(e);
     if(t->status == THREAD_ZOMBIE){
+      list_remove(&t->allelem);
       palloc_free_page (t);
     }
     else{
@@ -187,6 +189,8 @@ process_exit (void)
   for (int i = 0; i < 128; i++){
     file_close(get_file(i));
   }
+
+  printf("%s: exit(%d)\n", cur->name, cur->exit_status);
   // printf("finish close files\n");
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
