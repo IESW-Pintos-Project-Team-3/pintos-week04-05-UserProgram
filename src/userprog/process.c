@@ -38,11 +38,15 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  char* save_ptr;
+  char* save_ptr = NULL;
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (strtok_r(file_name, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (strtok_r(fn_copy, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+  
+  if (*save_ptr != '\0'){
+    *(save_ptr - 1) = ' ';
+  }
   
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
