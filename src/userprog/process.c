@@ -59,6 +59,8 @@ process_execute (const char *file_name)
   thread_yield();
 
   sema_down(&t->sema);
+  /*t->exit_status = -1 은 테스트를 위해서 추가한 조건
+    자식이 생성되고 너무 빨리 실행되고 종료되면 테스트 결과랑 안맞아서*/
   if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
     list_remove(&t->childelem);    //remove from child_list
     list_remove(&t->allelem);      //remove from all_list
