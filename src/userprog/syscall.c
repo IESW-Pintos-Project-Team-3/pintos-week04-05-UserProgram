@@ -94,6 +94,7 @@ syscall_handler (struct intr_frame *f)
       NOT_REACHED();
       break;
     }
+    
     case SYS_EXIT:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -103,6 +104,7 @@ syscall_handler (struct intr_frame *f)
       __exit(status);
       break;
     }
+
     case SYS_EXEC:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -116,6 +118,7 @@ syscall_handler (struct intr_frame *f)
       f->eax = process_execute(file_name);
       break;
     }
+
     case SYS_WAIT:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -126,6 +129,7 @@ syscall_handler (struct intr_frame *f)
       // printf("f->eax : %d\n",f->eax);
       break;
     }
+
     case SYS_CREATE:{
       if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
@@ -140,6 +144,7 @@ syscall_handler (struct intr_frame *f)
       f->eax = filesys_create(file_name, size);
       break;
     }
+
     case SYS_OPEN:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -159,6 +164,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_READ:{
       if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
@@ -199,6 +205,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_WRITE:{
       if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
@@ -230,6 +237,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_SEEK:{
       if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
@@ -243,6 +251,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_CLOSE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -256,6 +265,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_FILESIZE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -270,6 +280,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_TELL:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -285,6 +296,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_REMOVE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);

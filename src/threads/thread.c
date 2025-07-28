@@ -584,40 +584,6 @@ allocate_tid (void)
   return tid;
 }
 
-int 
-allocate_fd(struct file* file)
-{
-  struct thread *cur = thread_current ();
-
-  for (int fd = 3; fd < 128; fd++){
-    if (cur->fd_table[fd] == NULL){
-      cur->fd_table[fd] = file;
-      return fd;
-    }
-  }
-
-  return -1;
-}
-
-void
-free_fd(int fd)
-{
-  struct thread *cur = thread_current ();
-
-  cur->fd_table[fd] = NULL;
-}
-
-struct file*
-get_file(int fd){
-  struct thread *cur = thread_current ();
-
-  if(fd >= 128 || fd < 0){
-    return NULL;
-  }
-
-  return cur->fd_table[fd];
-}
-
 /*Function for call schedule from other source code*/
 void
 __schedule()
