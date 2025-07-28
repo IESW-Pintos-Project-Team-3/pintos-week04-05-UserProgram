@@ -222,10 +222,15 @@ syscall_handler (struct intr_frame *f)
       }else{
         struct file *file = get_file(fd);
         // if(file == NULL){
-        if(file == NULL || is_deny(file)){
+        if(file == NULL){
           f->eax = -1;
         }else{
-          f->eax = file_write(file,buffer,size);
+          int bytes_written = file_write(file,buffer,size);
+          if (bytes_written){
+            f->eax = bytes_written;
+          }else{
+            f->eax = -1;
+          }
         }
       }
       break;
