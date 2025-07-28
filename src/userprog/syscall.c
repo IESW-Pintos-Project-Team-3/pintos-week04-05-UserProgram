@@ -17,7 +17,7 @@ static void syscall_handler (struct intr_frame *);
 //   asm ("movl $1f, %0; movzbl %1, %0; 1:"
 //        : "=&a" (result) : "m" (*uaddr));
 //   return result;
-// };
+// }; 페이지 폴트를 발생시켜서 핸들러에서 -1을 반환하기 때문에 핸들러를 수정해야 됨
 
 /*일단 여기다 만듦 나중에 필요하면 다른 곳에 선언, 정의
   Check the address is valid */
@@ -82,7 +82,9 @@ syscall_handler (struct intr_frame *f)
   //   __exit(-1);
   //   return;
   // }
-  validate_esp(f->esp, 1);
+  if(!validate_esp(f->esp, 1)){
+    __exit(-1);
+  }
 
   int syscall_number = *(int*)f->esp;
   switch (syscall_number)
