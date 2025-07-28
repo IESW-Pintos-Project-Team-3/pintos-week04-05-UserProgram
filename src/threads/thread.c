@@ -612,9 +612,9 @@ get_file(int fd){
   struct thread *cur = thread_current ();
 
   if(fd >= 128 || fd < 0){
-    return NULL
+    return NULL;
   }
-  
+
   return cur->fd_table[fd];
 }
 

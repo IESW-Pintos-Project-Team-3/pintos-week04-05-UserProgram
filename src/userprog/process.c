@@ -38,11 +38,15 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-  char* save_ptr;
+  char* save_ptr = NULL;
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (strtok_r(file_name, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (strtok_r(fn_copy, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
+  
+  if (*save_ptr != '\0'){
+    *(save_ptr - 1) = ' ';
+  }
   
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
@@ -50,6 +54,21 @@ process_execute (const char *file_name)
   t->parent = parent;
 
   list_push_back(&parent->child_list, &t->childelem);
+  sema_up(&t->sema);
+
+  thread_yield();
+
+  sema_down(&t->sema);
+  /*t->exit_status = -1 은 테스트를 위해서 추가한 조건
+    자식이 생성되고 너무 빨리 종료되면 테스트 결과랑 안맞아서*/
+  if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
+    list_remove(&t->childelem);    //remove from child_list
+    list_remove(&t->allelem);      //remove from all_list
+    int child_exit_status = t->exit_status;
+    // printf("%s: exit(%d)\n", t->name, child_exit_status);
+    palloc_free_page(t);
+    return child_exit_status;
+  }
 
   return tid;
 }
@@ -59,6 +78,8 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
+  sema_down(&thread_current()->sema);
+  
   char *file_name = file_name_;
   struct intr_frame if_;
   char* argv[100];
@@ -79,16 +100,25 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
 
-  if (!success) 
+  /* If load failed, quit. */
+  if (!success){ 
+    struct thread *t = thread_current();
+    t->exit_status = -1;
+    // file_close(t->executable);
+    palloc_free_page (file_name);
     thread_exit ();
+  }
   
+  sema_up(&thread_current()->sema);
+
   set_parsing(argc, argv, &if_.esp);
+  
+  /*Must free page after parsing!!*/
+  palloc_free_page (file_name);
+  
   // hex_dump(0, if_.esp, 128, true);
   // printf("calling hex_dump\n");
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
-
-
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -120,9 +150,10 @@ process_wait (tid_t child_tid UNUSED)
     if(t->tid == child_tid){
         while (1){
           if(t->status == THREAD_ZOMBIE){
-            list_remove(e);
+            list_remove(e);             //remove from child_list
+            // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
             int child_exit_status = t->exit_status;
-            printf("%s: exit(%d)\n", t->name, child_exit_status);
+            // printf("%s: exit(%d)\n", t->name, child_exit_status);
             palloc_free_page(t);
             // printf("exit_status:%d\n",child_exit_status);
             return child_exit_status;
@@ -146,6 +177,7 @@ process_exit (void)
     struct thread * t = list_entry(e, struct thread, childelem);
     e = list_remove(e);
     if(t->status == THREAD_ZOMBIE){
+      // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?
       palloc_free_page (t);
     }
     else{
@@ -161,6 +193,8 @@ process_exit (void)
   for (int i = 0; i < 128; i++){
     file_close(get_file(i));
   }
+
+  printf("%s: exit(%d)\n", cur->name, cur->exit_status);
   // printf("finish close files\n");
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -180,11 +214,13 @@ process_exit (void)
       intr_disable();
       // cur->status = THREAD_ZOMBIE;
       sema_up(&cur->sema);
-      cur->status = THREAD_ZOMBIE;
+      file_close(cur->executable); //내부에서 file_allow_write 호출
       list_remove(&cur->allelem);
+      cur->status = THREAD_ZOMBIE;
       __schedule();
       NOT_REACHED();
     }
+  sema_up(&cur->sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -383,7 +419,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  // file_close (file);
+  if (file != NULL){
+    file_deny_write(file);
+    t->executable = file;
+  }
   return success;
 }
 
