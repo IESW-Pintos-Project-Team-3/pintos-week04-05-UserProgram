@@ -21,7 +21,7 @@
 
 /*File descriptor table size and max size*/
 #define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
-int fd_size = 128;
+static int fd_size = 128;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);

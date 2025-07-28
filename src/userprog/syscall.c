@@ -171,10 +171,10 @@ syscall_handler (struct intr_frame *f)
         __exit(-1);
       }
 
-      if (fd < 0 || fd >= 128){
-        f->eax = -1;
-        break;
-      }
+      // if (fd < 0 || fd >= 128){
+      //   f->eax = -1;
+      //   break;
+      // }
 
       if(fd == STDIN_FILENO){
         unsigned bytes_read = 0;
@@ -211,10 +211,10 @@ syscall_handler (struct intr_frame *f)
         __exit(-1);
       }
 
-      if (fd < 0 || fd >= 128){
-        f->eax = -1;
-        break;
-      }
+      // if (fd < 0 || fd >= 128){
+      //   f->eax = -1;
+      //   break;
+      // }
 
       if(fd == STDOUT_FILENO){
         putbuf(buffer,size);
