@@ -19,6 +19,10 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+/*File descriptor table size and max size*/
+#define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
+int fd_size = 128;
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 static void set_parsing(int argc, char** argv, void (**esp));
@@ -51,8 +55,11 @@ process_execute (const char *file_name)
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
   struct thread *t = get_thread_by_tid(tid);
+#ifdef FILESYS
+  t->fd_table = calloc(fd_size, sizeof *t->fd_table);
+#endif
   t->parent = parent;
-
+  
   list_push_back(&parent->child_list, &t->childelem);
   sema_up(&t->sema);
 
@@ -211,8 +218,10 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+
       intr_disable();
-      // cur->status = THREAD_ZOMBIE;
+
+      free(cur->fd_table);
       sema_up(&cur->sema);
       file_close(cur->executable); //내부에서 file_allow_write 호출
       list_remove(&cur->allelem);
@@ -605,4 +614,52 @@ set_parsing(int argc, char** argv, void (**esp)){
 
   *esp -= sizeof(void *);
   *(void **)*esp = 0;
+}
+
+int 
+allocate_fd(struct file* file)
+{
+  struct thread *cur = thread_current ();
+
+  for (int fd = 3; fd < fd_size; fd++){
+    if (cur->fd_table[fd] == NULL){
+      cur->fd_table[fd] = file;
+      return fd;
+    }
+  }
+  
+  if (fd_size < FD_LIMIT){
+    struct file** tmp = cur->fd_table;
+    cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
+    for (int i = 0; i < fd_size; i++){
+      cur->fd_table[i] = tmp[i];
+    }
+    free(tmp);
+
+    int fd = fd_size;
+    fd_size *= 2;
+    cur->fd_table[fd] = file;
+    return fd;
+  }
+
+  return -1;
+}
+
+void
+free_fd(int fd)
+{
+  struct thread *cur = thread_current ();
+
+  cur->fd_table[fd] = NULL;
+}
+
+struct file*
+get_file(int fd){
+  struct thread *cur = thread_current ();
+
+  if(fd >= fd_size || fd < 0){
+    return NULL;
+  }
+
+  return cur->fd_table[fd];
 }
