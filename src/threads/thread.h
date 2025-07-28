@@ -6,6 +6,7 @@
 #include <stdint.h>
 #ifdef USERPROG
 #include "threads/synch.h"
+#include "filesys/file.h"
 #endif
 /* States in a thread's life cycle. */
 enum thread_status
@@ -103,6 +104,7 @@ struct thread
     struct list child_list;             /*Child process list*/
     struct list_elem childelem;         /* List element for child list. */
     struct semaphore sema;              /*For parents that wait child process*/
+    struct file* executable;            /*Pointer for executable file that is about this process*/
     int exit_status;                    /*Status for parents*/
 #endif
 

@@ -221,7 +221,8 @@ syscall_handler (struct intr_frame *f)
         f->eax = size;
       }else{
         struct file *file = get_file(fd);
-        if(file == NULL){
+        // if(file == NULL){
+        if(file == NULL || is_deny(file)){
           f->eax = -1;
         }else{
           f->eax = file_write(file,buffer,size);

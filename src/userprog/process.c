@@ -60,7 +60,7 @@ process_execute (const char *file_name)
 
   sema_down(&t->sema);
   /*t->exit_status = -1 은 테스트를 위해서 추가한 조건
-    자식이 생성되고 너무 빨리 실행되고 종료되면 테스트 결과랑 안맞아서*/
+    자식이 생성되고 너무 빨리 종료되면 테스트 결과랑 안맞아서*/
   if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
     list_remove(&t->childelem);    //remove from child_list
     list_remove(&t->allelem);      //remove from all_list
@@ -102,13 +102,15 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   if (!success){ 
-    thread_current()->exit_status = -1;
+    struct thread *t = thread_current();
+    t->exit_status = -1;
+    // file_close(t->executable);
     palloc_free_page (file_name);
     thread_exit ();
   }
   
   sema_up(&thread_current()->sema);
-  
+
   set_parsing(argc, argv, &if_.esp);
   
   /*Must free page after parsing!!*/
@@ -116,7 +118,7 @@ start_process (void *file_name_)
   
   // hex_dump(0, if_.esp, 128, true);
   // printf("calling hex_dump\n");
-
+  
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -149,7 +151,7 @@ process_wait (tid_t child_tid UNUSED)
         while (1){
           if(t->status == THREAD_ZOMBIE){
             list_remove(e);             //remove from child_list
-            list_remove(&t->allelem);   //remove from all_list
+            // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
             int child_exit_status = t->exit_status;
             // printf("%s: exit(%d)\n", t->name, child_exit_status);
             palloc_free_page(t);
@@ -175,7 +177,7 @@ process_exit (void)
     struct thread * t = list_entry(e, struct thread, childelem);
     e = list_remove(e);
     if(t->status == THREAD_ZOMBIE){
-      list_remove(&t->allelem);
+      // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?
       palloc_free_page (t);
     }
     else{
@@ -212,8 +214,9 @@ process_exit (void)
       intr_disable();
       // cur->status = THREAD_ZOMBIE;
       sema_up(&cur->sema);
-      cur->status = THREAD_ZOMBIE;
+      file_close(cur->executable); //내부에서 file_allow_write 호출
       list_remove(&cur->allelem);
+      cur->status = THREAD_ZOMBIE;
       __schedule();
       NOT_REACHED();
     }
@@ -416,7 +419,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  // file_close (file);
+  if (file != NULL){
+    file_deny_write(file);
+    t->executable = file;
+  }
   return success;
 }
 
