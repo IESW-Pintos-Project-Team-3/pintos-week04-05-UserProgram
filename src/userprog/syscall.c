@@ -185,7 +185,7 @@ syscall_handler (struct intr_frame *f)
       if(fd == STDIN_FILENO){
         unsigned bytes_read = 0;
         char *buf = (char*)buffer;
-
+        lock_acquire(&stdin_lock);
         for(unsigned i = 0; i < size; i++){
           int c = input_getc();
           if(c == -1){
@@ -194,6 +194,8 @@ syscall_handler (struct intr_frame *f)
           buf[i] = (char)c;
           bytes_read++;
         }
+        lock_release(&stdin_lock);
+        
         f->eax = bytes_read;
       }else{
         struct file *file = get_file(fd);
@@ -229,10 +231,16 @@ syscall_handler (struct intr_frame *f)
       }else{
         struct file *file = get_file(fd);
         // if(file == NULL){
-        if(file == NULL || is_deny(file)){
+        if(file == NULL){
           f->eax = -1;
         }else{
-          f->eax = file_write(file,buffer,size);
+          int bytes_written = file_write(file,buffer,size);
+          if (bytes_written){
+            f->eax = bytes_written;
+          }else{
+            f->eax = -1;
+          }
+         
         }
       }
       break;
