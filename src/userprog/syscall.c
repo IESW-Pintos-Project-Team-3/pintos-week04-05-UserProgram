@@ -240,7 +240,6 @@ syscall_handler (struct intr_frame *f)
           }else{
             f->eax = -1;
           }
-         
         }
       }
       break;
