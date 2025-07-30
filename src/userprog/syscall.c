@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "lib/user/syscall.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -315,6 +316,22 @@ syscall_handler (struct intr_frame *f)
       }
       
       f->eax = filesys_remove(file_name);
+      break;
+    }
+
+    case SYS_MALLOC:{
+      size_t size = *(int*)(f->esp + 4);
+      f->eax = user_malloc(size);
+      break;
+    }
+
+    case SYS_FREE:{
+      void *p = *(void**)(f->esp + 4);
+      if(!validate_buffer(p, 1)){
+        __exit(-1);
+      }
+      
+      free(p);
       break;
     }
   }
