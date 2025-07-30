@@ -33,6 +33,28 @@ fopen(const char *file_name, int type)
   return f;
 }
 
+struct FILE *
+fdopen(int fd, int type)
+{
+  struct FILE* f = calloc(1, sizeof *f);
+  if (f == NULL){
+    return NULL;
+  }
+
+  f->rd_buffer = calloc(1, 512);
+  f->wr_buufer = calloc(1, 512);
+  if (f->rd_buffer == NULL || f->wr_buufer == NULL){
+    free(f->rd_buffer);
+    free(f->wr_buufer);
+    free(f);
+    return NULL;
+  }
+  f->buf_size = 512;
+  f->type = type;
+  f->fd = fd;
+  return f;
+}
+
 void
 fclose(struct FILE* f){
   if (f == NULL){
@@ -84,7 +106,6 @@ fread(void* p, size_t a, size_t b, struct FILE* f)
     size -= f->rd_pos;
     read_bytes += read(f->fd, p + read_bytes, size);
     f->rd_pos = 0;
-    // f->rd_pos = 0;
     // while(size){
     //   if (!read(f->fd, f->rd_buffer, f->buf_size)){
     //     break;
