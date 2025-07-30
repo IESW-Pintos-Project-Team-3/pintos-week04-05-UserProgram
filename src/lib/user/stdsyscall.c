@@ -73,6 +73,10 @@ fclose(struct FILE* f){
   fflush(f);
 
   close(f->fd);
+
+  free(f->rd_buffer);
+  free(f->wr_buufer);
+  free(f);
 }
 
 int
