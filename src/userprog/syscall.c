@@ -320,17 +320,25 @@ syscall_handler (struct intr_frame *f)
     }
 
     case SYS_MALLOC:{
-      size_t size = *(int*)(f->esp + 4);
+      if (!validate_esp(f->esp + 4, 1)){
+        __exit(-1);
+      }
+
+      size_t size = *(size_t *)(f->esp + 4);
       f->eax = user_malloc(size);
       break;
     }
 
     case SYS_FREE:{
+      if (!validate_esp(f->esp + 4, 1)){
+        __exit(-1);
+      }
+
       void *p = *(void**)(f->esp + 4);
       if(!validate_buffer(p, 1)){
         __exit(-1);
       }
-      
+
       free(p);
       break;
     }
