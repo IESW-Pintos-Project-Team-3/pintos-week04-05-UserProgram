@@ -10,6 +10,8 @@ enum
 };
 
 struct FILE *fopen(const char *, int);
-void fclose(struct File*);
-int fread(void*, size_t, size_t, struct File*);
-int fwrite(void*, size_t, size_t, struct File*);
+void fclose(struct FILE *);
+int fread(void *, size_t, size_t, struct FILE *);
+int fwrite(void *, size_t, size_t, struct FILE *);
+void fseek(unsigned, struct FILE *);
+void fflush(struct FILE *);
