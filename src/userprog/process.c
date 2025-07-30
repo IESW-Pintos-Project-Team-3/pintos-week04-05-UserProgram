@@ -629,13 +629,13 @@ allocate_fd(struct file* file)
   }
   
   if (fd_size < FD_LIMIT){
-    struct file** tmp = cur->fd_table;
-    cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
-    for (int i = 0; i < fd_size; i++){
-      cur->fd_table[i] = tmp[i];
-    }
-    free(tmp);
-
+    // struct file** tmp = cur->fd_table;
+    // cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
+    // for (int i = 0; i < fd_size; i++){
+    //   cur->fd_table[i] = tmp[i];
+    // }
+    // free(tmp);
+    cur->fd_table = realloc(cur->fd_table, fd_size * sizeof *cur->fd_table * 2);
     int fd = fd_size;
     fd_size *= 2;
     cur->fd_table[fd] = file;
