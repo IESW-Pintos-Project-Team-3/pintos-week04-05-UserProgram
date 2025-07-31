@@ -62,6 +62,7 @@ struct block
 
 /* Our set of descriptors. */
 static struct desc descs[10];   /* Descriptors. */
+static struct desc udescs[10];  /*User Descriptors. */
 static size_t desc_cnt;         /* Number of descriptors. */
 
 static struct arena *block_to_arena (struct block *);
@@ -75,12 +76,15 @@ malloc_init (void)
 
   for (block_size = 16; block_size < PGSIZE / 2; block_size *= 2)
     {
+      struct desc *u = &udescs[desc_cnt]; /*add*/
       struct desc *d = &descs[desc_cnt++];
       ASSERT (desc_cnt <= sizeof descs / sizeof *descs);
-      d->block_size = block_size;
-      d->blocks_per_arena = (PGSIZE - sizeof (struct arena)) / block_size;
+      d->block_size = u->block_size = block_size;
+      d->blocks_per_arena = u->blocks_per_arena = (PGSIZE - sizeof (struct arena)) / block_size;
       list_init (&d->free_list);
       lock_init (&d->lock);
+      list_init (&u->free_list);
+      lock_init (&u->lock);
     }
 }
 
@@ -213,6 +217,95 @@ realloc (void *old_block, size_t new_size)
     }
 }
 
+void *
+user_malloc(size_t size)
+{
+  struct desc *d;
+  struct block *b;
+  struct arena *a;
+
+  /* A null pointer satisfies a request for 0 bytes. */
+  if (size == 0)
+    return NULL;
+
+  /* Find the smallest descriptor that satisfies a SIZE-byte
+     request. */
+  for (d = udescs; d < udescs + desc_cnt; d++)
+    if (d->block_size >= size)
+      break;
+  if (d == udescs + desc_cnt) 
+    {
+      /* SIZE is too big for any descriptor.
+         Allocate enough pages to hold SIZE plus an arena. */
+      size_t page_cnt = DIV_ROUND_UP (size + sizeof *a, PGSIZE);
+      a = palloc_get_multiple (4, page_cnt);
+      if (a == NULL)
+        return NULL;
+
+      /* Initialize the arena to indicate a big block of PAGE_CNT
+         pages, and return it. */
+      a->magic = ARENA_MAGIC;
+      a->desc = NULL;
+      a->free_cnt = page_cnt;
+      return a + 1;
+    }
+
+  lock_acquire (&d->lock);
+
+  /* If the free list is empty, create a new arena. */
+  if (list_empty (&d->free_list))
+    {
+      size_t i;
+
+      /* Allocate a page. */
+      a = palloc_get_page (4);
+      if (a == NULL) 
+        {
+          lock_release (&d->lock);
+          return NULL; 
+        }
+
+      /* Initialize arena and add its blocks to the free list. */
+      a->magic = ARENA_MAGIC;
+      a->desc = d;
+      a->free_cnt = d->blocks_per_arena;
+      for (i = 0; i < d->blocks_per_arena; i++) 
+        {
+          struct block *b = arena_to_block (a, i);
+          list_push_back (&d->free_list, &b->free_elem);
+        }
+    }
+
+  /* Get a block from free list and return it. */
+  b = list_entry (list_pop_front (&d->free_list), struct block, free_elem);
+  a = block_to_arena (b);
+  a->free_cnt--;
+  lock_release (&d->lock);
+  return b;
+}
+
+void *
+user_realloc (void *old_block, size_t new_size) 
+{
+  if (new_size == 0) 
+    {
+      free (old_block);
+      return NULL;
+    }
+  else 
+    {
+      void *new_block = user_malloc (new_size);
+      if (old_block != NULL && new_block != NULL)
+        {
+          size_t old_size = block_size (old_block);
+          size_t min_size = new_size < old_size ? new_size : old_size;
+          memcpy (new_block, old_block, min_size);
+          free (old_block);
+        }
+      return new_block;
+    }
+}
+
 /* Frees block P, which must have been previously allocated with
    malloc(), calloc(), or realloc(). */
 void
@@ -280,6 +373,7 @@ block_to_arena (struct block *b)
 
   return a;
 }
+
 
 /* Returns the (IDX - 1)'th block within arena A. */
 static struct block *

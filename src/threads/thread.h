@@ -106,15 +106,15 @@ struct thread
     struct semaphore sema;              /*For parents that wait child process*/
     struct file* executable;            /*Pointer for executable file that is about this process*/
     int exit_status;                    /*Status for parents*/
+//  struct file** fd_table;         /*File descriptor table*/
+    struct file** fd_table;
 #endif
 
-#ifdef FILESYS
-    struct file* fd_table[128];         /*File descriptor table*/
-#endif
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+struct lock stdin_lock;
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -150,10 +150,6 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-int allocate_fd(struct file*);
-void free_fd(int);
-struct file* get_file(int);
 
 void __schedule();
 
