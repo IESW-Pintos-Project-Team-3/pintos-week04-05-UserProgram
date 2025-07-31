@@ -5,7 +5,7 @@ struct FILE{
     void* wr_buufer;
     int rd_pos;
     int wr_pos;
-    int old_pos;
+    // int old_pos;
     int buf_size;
     int fd;
     int type;
@@ -96,18 +96,17 @@ fread(void* p, size_t a, size_t b, struct FILE* f)
 //     f->rd_pos = 0;
 //   }
 
-  if (size <= f->rd_pos){
-    for (int i = 0; i < size; i++){
-        p[i] = f->rd_buffer[i];
-        read_bytes++;
+  if (size <= f->buf_size - f->rd_pos){
+    for (; read_bytes < size; ){
+        p[read_bytes++] = f->rd_buffer[f->rd_pos++];
     }
-    memmove(f->rd_buffer, f->rd_buffer + size, f->rd_pos - size);
-    f->rd_pos -= size;
+    // memmove(f->rd_buffer, f->rd_buffer + size, f->rd_pos - size);
+    // f->rd_pos -= size;
   }else{
-    for (int i = 0; i < f->rd_pos; i++){
-        p[read_bytes++] = f->rd_buffer[i];
+    for (; f->rd_pos < f->buf_size;){
+      p[read_bytes++] = f->rd_buffer[f->rd_pos++];
     }
-    size -= f->rd_pos;
+    // size -= f->rd_pos;
     read_bytes += read(f->fd, p + read_bytes, size);
     f->rd_pos = 0;
     // while(size){
@@ -129,7 +128,6 @@ fread(void* p, size_t a, size_t b, struct FILE* f)
     //   }
     // }
   }
-
 //   if (read_bytes){
 //     f->old_pos = tell(f->fd);
 //   }
