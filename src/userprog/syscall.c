@@ -236,11 +236,7 @@ syscall_handler (struct intr_frame *f)
           f->eax = -1;
         }else{
           int bytes_written = file_write(file,buffer,size);
-          if (bytes_written){
-            f->eax = bytes_written;
-          }else{
-            f->eax = -1;
-          }
+          f->eax = bytes_written;
         }
       }
       break;
