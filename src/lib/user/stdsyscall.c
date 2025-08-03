@@ -1,8 +1,8 @@
 #include <stdsyscall.h>
 
 struct FILE{
-    void* rd_buffer;
-    void* wr_buufer;
+    char *rd_buffer;
+    char *wr_buufer;
     int rd_pos;
     int wr_pos;
     // int old_pos;
@@ -80,7 +80,7 @@ fclose(struct FILE* f){
 }
 
 int
-fread(void* p, size_t a, size_t b, struct FILE* f)
+fread(char *p, size_t a, size_t b, struct FILE *f)
 {
   if (f == NULL || f->type == WRONLY){
     return -1;
@@ -136,7 +136,7 @@ fread(void* p, size_t a, size_t b, struct FILE* f)
 }
 
 int
-fwrite(void* p, size_t a, size_t b, struct FILE* f)
+fwrite(char *p, size_t a, size_t b, struct FILE *f)
 {
   if (f == NULL || f->type == RDONLY){
     return -1;
