@@ -41,8 +41,10 @@ process_execute (const char *file_name)
   char* save_ptr = NULL;
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (strtok_r(fn_copy, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy);
+    return TID_ERROR;
+  }
   
   if (*save_ptr != '\0'){
     *(save_ptr - 1) = ' ';
