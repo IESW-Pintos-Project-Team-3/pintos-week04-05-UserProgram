@@ -70,6 +70,7 @@ process_execute (const char *file_name)
   }
   
   if (t->exit_status == -1){
+    free(t->fd_table);
     palloc_free_page(t);
     return -1;
   }
@@ -242,6 +243,7 @@ process_exit (void)
       intr_disable();
       
       free(cur->fd_table);
+      cur->fd_table = NULL;
       sema_up(&cur->sema);
       file_close(cur->executable); //내부에서 file_allow_write 호출
       // list_remove(&cur->allelem);
