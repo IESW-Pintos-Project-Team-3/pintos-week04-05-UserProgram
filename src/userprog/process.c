@@ -196,10 +196,6 @@ process_exit (void)
     }
   }
   // printf("finish child wait\n");
-  /*Close all files that process opened*/
-  for (int i = 0; i < fd_size; i++){
-    file_close(get_file(i));
-  }
 
   printf("%s: exit(%d)\n", cur->name, cur->exit_status);
   // printf("finish close files\n");
@@ -218,9 +214,14 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+      
+      /*Close all files that process opened*/
+      for (int i = 0; i < fd_size; i++){
+        file_close(get_file(i));
+      }
 
       intr_disable();
-
+      
       free(cur->fd_table);
       sema_up(&cur->sema);
       file_close(cur->executable); //내부에서 file_allow_write 호출
