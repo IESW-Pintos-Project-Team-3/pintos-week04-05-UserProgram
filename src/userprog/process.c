@@ -45,8 +45,10 @@ process_execute (const char *file_name)
   char* save_ptr = NULL;
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (strtok_r(fn_copy, " ",&save_ptr), PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy);
+    return TID_ERROR;
+  }
   
   if (*save_ptr != '\0'){
     *(save_ptr - 1) = ' ';
@@ -55,28 +57,36 @@ process_execute (const char *file_name)
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
   struct thread *t = get_thread_by_tid(tid);
-#ifdef FILESYS
-  t->fd_table = calloc(fd_size, sizeof *t->fd_table);
-#endif
-  t->parent = parent;
-  
-  list_push_back(&parent->child_list, &t->childelem);
+
   sema_up(&t->sema);
 
   thread_yield();
 
   sema_down(&t->sema);
-  /*t->exit_status = -1 은 테스트를 위해서 추가한 조건
-    자식이 생성되고 너무 빨리 종료되면 테스트 결과랑 안맞아서*/
-  if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
-    list_remove(&t->childelem);    //remove from child_list
-    list_remove(&t->allelem);      //remove from all_list
-    int child_exit_status = t->exit_status;
-    // printf("%s: exit(%d)\n", t->name, child_exit_status);
-    palloc_free_page(t);
-    return child_exit_status;
-  }
 
+  t = get_thread_by_tid(tid);
+  if (t == NULL){
+    return -1;
+  }
+  
+  if (t->exit_status == -1){
+    palloc_free_page(t);
+    return -1;
+  }
+  // /*t->exit_status = -1 은 테스트를 위해서 추가한 조건
+  //   자식이 생성되고 너무 빨리 종료되면 테스트 결과랑 안맞아서*/
+  // if (t->exit_status == -1){
+  // // if(t->status == THREAD_ZOMBIE && t->exit_status == -1){
+  //   // list_remove(&t->childelem);    //remove from child_list
+  //   // list_remove(&t->allelem);      //remove from all_list
+  //   int child_exit_status = t->exit_status;
+  //   // printf("%s: exit(%d)\n", t->name, child_exit_status);
+    
+  //   return child_exit_status;
+  // }
+
+  t->parent = parent;
+  list_push_back(&parent->child_list, &t->childelem);
   return tid;
 }
 
@@ -86,7 +96,7 @@ static void
 start_process (void *file_name_)
 {
   sema_down(&thread_current()->sema);
-  
+  struct thread *t = thread_current();
   char *file_name = file_name_;
   struct intr_frame if_;
   char* argv[100];
@@ -109,13 +119,20 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   if (!success){ 
-    struct thread *t = thread_current();
+    // struct thread *t = thread_current();
     t->exit_status = -1;
     // file_close(t->executable);
     palloc_free_page (file_name);
     thread_exit ();
   }
   
+  t->fd_table = calloc(fd_size, sizeof *t->fd_table);
+  if (t->fd_table == NULL){
+    t->exit_status = -1;
+    palloc_free_page (file_name);
+    thread_exit ();
+  }
+
   sema_up(&thread_current()->sema);
 
   set_parsing(argc, argv, &if_.esp);
@@ -158,7 +175,7 @@ process_wait (tid_t child_tid UNUSED)
         while (1){
           if(t->status == THREAD_ZOMBIE){
             list_remove(e);             //remove from child_list
-            // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
+            list_remove(&t->allelem); //exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
             int child_exit_status = t->exit_status;
             // printf("%s: exit(%d)\n", t->name, child_exit_status);
             palloc_free_page(t);
@@ -216,8 +233,10 @@ process_exit (void)
       pagedir_destroy (pd);
       
       /*Close all files that process opened*/
-      for (int i = 0; i < fd_size; i++){
-        file_close(get_file(i));
+      if (cur->fd_table != NULL){
+        for (int i = 0; i < fd_size; i++){
+          file_close(get_file(i));
+        }
       }
 
       intr_disable();
@@ -225,12 +244,12 @@ process_exit (void)
       free(cur->fd_table);
       sema_up(&cur->sema);
       file_close(cur->executable); //내부에서 file_allow_write 호출
-      list_remove(&cur->allelem);
+      // list_remove(&cur->allelem);
       cur->status = THREAD_ZOMBIE;
       __schedule();
       NOT_REACHED();
     }
-  sema_up(&cur->sema);
+  // sema_up(&cur->sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -630,13 +649,17 @@ allocate_fd(struct file* file)
   }
   
   if (fd_size < FD_LIMIT){
-    // struct file** tmp = cur->fd_table;
+    struct file** tmp = cur->fd_table;
     // cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
     // for (int i = 0; i < fd_size; i++){
     //   cur->fd_table[i] = tmp[i];
     // }
     // free(tmp);
     cur->fd_table = realloc(cur->fd_table, fd_size * sizeof *cur->fd_table * 2);
+    if (cur->fd_table == NULL){
+      cur->fd_table = tmp;
+      return -1;
+    }
     int fd = fd_size;
     fd_size *= 2;
     cur->fd_table[fd] = file;
