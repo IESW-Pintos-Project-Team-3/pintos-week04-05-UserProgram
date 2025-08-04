@@ -90,6 +90,7 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
+  lock_init (&stdin_lock);
   list_init (&ready_list);
   list_init (&all_list);
 
@@ -290,6 +291,7 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+  sema_up(&thread_current()->sema);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -584,40 +586,6 @@ allocate_tid (void)
   return tid;
 }
 
-int 
-allocate_fd(struct file* file)
-{
-  struct thread *cur = thread_current ();
-
-  for (int fd = 3; fd < 128; fd++){
-    if (cur->fd_table[fd] == NULL){
-      cur->fd_table[fd] = file;
-      return fd;
-    }
-  }
-
-  return -1;
-}
-
-void
-free_fd(int fd)
-{
-  struct thread *cur = thread_current ();
-
-  cur->fd_table[fd] = NULL;
-}
-
-struct file*
-get_file(int fd){
-  struct thread *cur = thread_current ();
-
-  if(fd >= 128 || fd < 0){
-    return NULL;
-  }
-
-  return cur->fd_table[fd];
-}
-
 /*Function for call schedule from other source code*/
 void
 __schedule()
