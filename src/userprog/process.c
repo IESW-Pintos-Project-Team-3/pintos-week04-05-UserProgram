@@ -197,7 +197,7 @@ process_exit (void)
   }
   // printf("finish child wait\n");
   /*Close all files that process opened*/
-  for (int i = 0; i < 128; i++){
+  for (int i = 0; i < fd_size; i++){
     file_close(get_file(i));
   }
 
