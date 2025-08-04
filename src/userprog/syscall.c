@@ -4,6 +4,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "lib/user/syscall.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -94,6 +95,7 @@ syscall_handler (struct intr_frame *f)
       NOT_REACHED();
       break;
     }
+    
     case SYS_EXIT:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -103,6 +105,7 @@ syscall_handler (struct intr_frame *f)
       __exit(status);
       break;
     }
+
     case SYS_EXEC:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -116,6 +119,7 @@ syscall_handler (struct intr_frame *f)
       f->eax = process_execute(file_name);
       break;
     }
+
     case SYS_WAIT:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -126,6 +130,7 @@ syscall_handler (struct intr_frame *f)
       // printf("f->eax : %d\n",f->eax);
       break;
     }
+
     case SYS_CREATE:{
       if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
@@ -140,6 +145,7 @@ syscall_handler (struct intr_frame *f)
       f->eax = filesys_create(file_name, size);
       break;
     }
+
     case SYS_OPEN:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -159,6 +165,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_READ:{
       if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
@@ -171,15 +178,15 @@ syscall_handler (struct intr_frame *f)
         __exit(-1);
       }
 
-      if (fd < 0 || fd >= 128){
-        f->eax = -1;
-        break;
-      }
+      // if (fd < 0 || fd >= 128){
+      //   f->eax = -1;
+      //   break;
+      // }
 
       if(fd == STDIN_FILENO){
         unsigned bytes_read = 0;
         char *buf = (char*)buffer;
-
+        lock_acquire(&stdin_lock);
         for(unsigned i = 0; i < size; i++){
           int c = input_getc();
           if(c == -1){
@@ -188,6 +195,8 @@ syscall_handler (struct intr_frame *f)
           buf[i] = (char)c;
           bytes_read++;
         }
+        lock_release(&stdin_lock);
+        
         f->eax = bytes_read;
       }else{
         struct file *file = get_file(fd);
@@ -199,6 +208,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_WRITE:{
       if (!validate_esp(f->esp + 4, 3)){
         __exit(-1);
@@ -211,10 +221,10 @@ syscall_handler (struct intr_frame *f)
         __exit(-1);
       }
 
-      if (fd < 0 || fd >= 128){
-        f->eax = -1;
-        break;
-      }
+      // if (fd < 0 || fd >= 128){
+      //   f->eax = -1;
+      //   break;
+      // }
 
       if(fd == STDOUT_FILENO){
         putbuf(buffer,size);
@@ -231,6 +241,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_SEEK:{
       if (!validate_esp(f->esp + 4, 2)){
         __exit(-1);
@@ -244,6 +255,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_CLOSE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -257,6 +269,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_FILESIZE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -271,6 +284,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_TELL:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -286,6 +300,7 @@ syscall_handler (struct intr_frame *f)
       }
       break;
     }
+
     case SYS_REMOVE:{
       if (!validate_esp(f->esp + 4, 1)){
         __exit(-1);
@@ -297,6 +312,30 @@ syscall_handler (struct intr_frame *f)
       }
       
       f->eax = filesys_remove(file_name);
+      break;
+    }
+
+    case SYS_MALLOC:{
+      if (!validate_esp(f->esp + 4, 1)){
+        __exit(-1);
+      }
+
+      size_t size = *(size_t *)(f->esp + 4);
+      f->eax = user_malloc(size);
+      break;
+    }
+
+    case SYS_FREE:{
+      if (!validate_esp(f->esp + 4, 1)){
+        __exit(-1);
+      }
+
+      void *p = *(void**)(f->esp + 4);
+      if(!validate_buffer(p, 1)){
+        __exit(-1);
+      }
+
+      free(p);
       break;
     }
   }

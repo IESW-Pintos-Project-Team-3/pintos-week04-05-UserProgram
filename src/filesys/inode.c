@@ -36,8 +36,8 @@ struct inode
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
-    int deny_write_cnt;    
-    struct lock rw_lock;             /* 0: writes ok, >0: deny writes. */
+    int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
+    struct lock rw_lock;                /* Guarantree atomic read or write*/
     struct inode_disk data;             /* Inode content. */
   };
 
@@ -250,7 +250,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     }
   free (bounce);
   lock_release(&inode->rw_lock);
-  
+
   return bytes_read;
 }
 

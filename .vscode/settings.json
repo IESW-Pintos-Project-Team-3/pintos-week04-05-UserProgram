@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "atomic": "c",
+        "*.inc": "c",
+        "locale": "c"
+    }
+}

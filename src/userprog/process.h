@@ -8,4 +8,8 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
+/*About file and file discriptor*/
+int allocate_fd(struct file*);
+void free_fd(int);
+struct file* get_file(int);
 #endif /* userprog/process.h */
