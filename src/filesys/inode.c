@@ -250,6 +250,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
     }
   free (bounce);
   lock_release(&inode->rw_lock);
+  
   return bytes_read;
 }
 
@@ -269,9 +270,9 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
   if (inode->deny_write_cnt)
     return 0;
 
+  lock_acquire(&inode->rw_lock);
   while (size > 0) 
     {
-      lock_acquire(&inode->rw_lock);
       /* Sector to write, starting byte offset within sector. */
       block_sector_t sector_idx = byte_to_sector (inode, offset);
       int sector_ofs = offset % BLOCK_SECTOR_SIZE;
@@ -319,6 +320,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     }
   free (bounce);
   lock_release(&inode->rw_lock);
+
   return bytes_written;
 }
 
