@@ -21,7 +21,7 @@
 
 /*File descriptor table size and max size*/
 #define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
-static int fd_size = 128;
+#define FD_SIZE 128;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -57,13 +57,11 @@ process_execute (const char *file_name)
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
   struct thread *t = get_thread_by_tid(tid);
-
   sema_up(&t->sema);
 
   thread_yield();
 
   sema_down(&t->sema);
-
   t = get_thread_by_tid(tid);
   if (t == NULL){
     return -1;
@@ -71,6 +69,7 @@ process_execute (const char *file_name)
   
   if (t->exit_status == -1){
     free(t->fd_table);
+    list_remove(&t->allelem);
     palloc_free_page(t);
     return -1;
   }
@@ -126,8 +125,9 @@ start_process (void *file_name_)
     palloc_free_page (file_name);
     thread_exit ();
   }
-  
-  t->fd_table = calloc(fd_size, sizeof *t->fd_table);
+
+  t->fd_size = FD_SIZE;
+  t->fd_table = calloc(t->fd_size, sizeof *t->fd_table);
   if (t->fd_table == NULL){
     t->exit_status = -1;
     palloc_free_page (file_name);
@@ -202,7 +202,7 @@ process_exit (void)
     struct thread * t = list_entry(e, struct thread, childelem);
     e = list_remove(e);
     if(t->status == THREAD_ZOMBIE){
-      // list_remove(&t->allelem); exit할 때 all_list에서 제거하니까 중복?
+      list_remove(&t->allelem);
       palloc_free_page (t);
     }
     else{
@@ -232,11 +232,22 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
-      
+      // printf("fd_size = %d\n", cur->fd_size);
+      // if (cur->fd_table != NULL){
+      //   for (int i = 3; i < cur->fd_size; i++){
+      //     if (cur->fd_table[i] != NULL){
+      //       printf("%d %d = %#x / %#x\n", cur->tid, i, cur->fd_table[i], file_get_inode(cur->fd_table[i]));
+      //     }
+      //     else{
+      //       printf("%d %d = NULL\n", cur->tid, i, cur->fd_table[i]);
+      //     }
+      //   }
+      // }
       /*Close all files that process opened*/
       if (cur->fd_table != NULL){
-        for (int i = 0; i < fd_size; i++){
+        for (int i = 0; i < cur->fd_size; i++){
           file_close(get_file(i));
+          cur->fd_table[i] = NULL;
         }
       }
 
@@ -642,7 +653,7 @@ int
 allocate_fd(struct file* file)
 {
   struct thread *cur = thread_current ();
-
+  int fd_size = cur->fd_size;
   for (int fd = 3; fd < fd_size; fd++){
     if (cur->fd_table[fd] == NULL){
       cur->fd_table[fd] = file;
@@ -652,20 +663,25 @@ allocate_fd(struct file* file)
   
   if (fd_size < FD_LIMIT){
     struct file** tmp = cur->fd_table;
-    // cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
-    // for (int i = 0; i < fd_size; i++){
-    //   cur->fd_table[i] = tmp[i];
-    // }
-    // free(tmp);
-    cur->fd_table = realloc(cur->fd_table, fd_size * sizeof *cur->fd_table * 2);
+    cur->fd_table = calloc(fd_size*2, sizeof *cur->fd_table);
     if (cur->fd_table == NULL){
       cur->fd_table = tmp;
       return -1;
     }
-    int fd = fd_size;
-    fd_size *= 2;
-    cur->fd_table[fd] = file;
-    return fd;
+    memcpy(cur->fd_table, tmp, fd_size*sizeof *cur->fd_table);
+    // for (int i = 0; i < fd_size; i++){
+    //   cur->fd_table[i] = tmp[i];
+    // }
+    free(tmp);
+    // cur->fd_table = realloc(cur->fd_table, fd_size * sizeof *cur->fd_table * 2);
+    // if (cur->fd_table == NULL){
+    //   cur->fd_table = tmp;
+    //   return -1;
+    // }
+    cur->fd_table[fd_size] = file;
+    cur->fd_size *= 2;
+
+    return fd_size;
   }
 
   return -1;
@@ -683,7 +699,7 @@ struct file*
 get_file(int fd){
   struct thread *cur = thread_current ();
 
-  if(fd >= fd_size || fd < 0){
+  if(fd >= cur->fd_size || fd < 0){
     return NULL;
   }
 

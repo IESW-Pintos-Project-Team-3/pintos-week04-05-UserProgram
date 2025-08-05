@@ -108,6 +108,7 @@ struct thread
     int exit_status;                    /*Status for parents*/
 //  struct file** fd_table;         /*File descriptor table*/
     struct file** fd_table;
+    int fd_size;
 #endif
 
     /* Owned by thread.c. */
