@@ -22,6 +22,7 @@
 /*File descriptor table size and max size*/
 #define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
 #define FD_SIZE 128;
+#define MAX_ARGS 55;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -99,11 +100,11 @@ start_process (void *file_name_)
   struct thread *t = thread_current();
   char *file_name = file_name_;
   struct intr_frame if_;
-  char* argv[100];
+  char* argv[MAX_ARGS];
   int argc = 0;
   char* save_ptr;
   char* token = strtok_r(file_name_, " ", &save_ptr);
-  while(token != NULL){
+  while(token != NULL && argc < MAX_ARGS){
     argv[argc++] = token;
     token = strtok_r(NULL, " ", &save_ptr);
   }
