@@ -20,9 +20,9 @@
 #include "threads/vaddr.h"
 
 /*File descriptor table size and max size*/
-#define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
-#define FD_SIZE 128;
-#define MAX_ARGS 55;
+#define FD_LIMIT 512 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
+#define FD_SIZE 8
+#define MAX_ARGS 55
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -58,19 +58,27 @@ process_execute (const char *file_name)
   /*Set parent <-> child*/
   struct thread *parent = thread_current();
   struct thread *t = get_thread_by_tid(tid);
+  t->parent = parent;
   sema_up(&t->sema);
 
-  thread_yield();
+  // thread_yield();
 
-  sema_down(&t->sema);
-  t = get_thread_by_tid(tid);
-  if (t == NULL){
+  // sema_down(&t->sema);
+  sema_down(&parent->child_load);
+  char chk = parent->executable & 0x1;
+  if (chk == 1){
+    parent->executable = parent->executable & ~0x1;
     return -1;
   }
+
+  // t = get_thread_by_tid(tid);
+  // if (t == NULL){
+  //   return -1;
+  // }
   
   if (t->exit_status == -1){
-    free(t->fd_table);
-    list_remove(&t->allelem);
+    sema_down(&t->sema);
+    // list_remove(&t->allelem);
     palloc_free_page(t);
     return -1;
   }
@@ -86,7 +94,6 @@ process_execute (const char *file_name)
   //   return child_exit_status;
   // }
 
-  t->parent = parent;
   list_push_back(&parent->child_list, &t->childelem);
   return tid;
 }
@@ -96,8 +103,9 @@ process_execute (const char *file_name)
 static void
 start_process (void *file_name_)
 {
-  sema_down(&thread_current()->sema);
+  // sema_down(&thread_current()->sema);
   struct thread *t = thread_current();
+  sema_down(&t->sema);
   char *file_name = file_name_;
   struct intr_frame if_;
   char* argv[MAX_ARGS];
@@ -119,11 +127,14 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
-  if (!success){ 
-    // struct thread *t = thread_current();
+  if (!success){
+    if (t->pagedir == NULL){
+      t->parent->executable += 1;
+    }
+
     t->exit_status = -1;
-    // file_close(t->executable);
     palloc_free_page (file_name);
+    sema_up(&t->parent->child_load);
     thread_exit ();
   }
 
@@ -132,10 +143,11 @@ start_process (void *file_name_)
   if (t->fd_table == NULL){
     t->exit_status = -1;
     palloc_free_page (file_name);
+    sema_up(&t->parent->child_load);
     thread_exit ();
   }
 
-  sema_up(&thread_current()->sema);
+  sema_up(&t->parent->child_load);
 
   set_parsing(argc, argv, &if_.esp);
   
@@ -177,7 +189,7 @@ process_wait (tid_t child_tid UNUSED)
         while (1){
           if(t->status == THREAD_ZOMBIE){
             list_remove(e);             //remove from child_list
-            list_remove(&t->allelem); //exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
+            // list_remove(&t->allelem); //exit할 때 all_list에서 제거하니까 중복?  //remove from all_list
             int child_exit_status = t->exit_status;
             // printf("%s: exit(%d)\n", t->name, child_exit_status);
             palloc_free_page(t);
@@ -203,7 +215,7 @@ process_exit (void)
     struct thread * t = list_entry(e, struct thread, childelem);
     e = list_remove(e);
     if(t->status == THREAD_ZOMBIE){
-      list_remove(&t->allelem);
+      // list_remove(&t->allelem);
       palloc_free_page (t);
     }
     else{
@@ -258,7 +270,7 @@ process_exit (void)
       cur->fd_table = NULL;
       sema_up(&cur->sema);
       file_close(cur->executable); //내부에서 file_allow_write 호출
-      // list_remove(&cur->allelem);
+      list_remove(&cur->allelem);
       cur->status = THREAD_ZOMBIE;
       __schedule();
       NOT_REACHED();
@@ -444,6 +456,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
+              t->heap_base = ROUND_UP(phdr.p_vaddr + phdr.p_memsz, PGSIZE);
+              t->heap_end = t->heap_base;
             }
           else
             goto done;
