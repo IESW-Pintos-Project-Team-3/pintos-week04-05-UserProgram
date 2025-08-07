@@ -291,7 +291,7 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
-  sema_up(&thread_current()->sema);
+  // sema_up(&thread_current()->sema);
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -467,6 +467,7 @@ init_thread (struct thread *t, const char *name, int priority)
 #ifdef USERPROG
   list_init(&t->child_list);
   sema_init(&t->sema, 0);
+  sema_init(&t->child_load, 0);
 #endif
 
   t->magic = THREAD_MAGIC;

@@ -104,10 +104,13 @@ struct thread
     struct list child_list;             /*Child process list*/
     struct list_elem childelem;         /* List element for child list. */
     struct semaphore sema;              /*For parents that wait child process*/
-    struct file* executable;            /*Pointer for executable file that is about this process*/
+    struct semaphore child_load;        /*For waiting childprocess load*/
+   //  struct file* executable;            /*Pointer for executable file that is about this process*/
+    uint32_t executable;
     int exit_status;                    /*Status for parents*/
-//  struct file** fd_table;         /*File descriptor table*/
-    struct file** fd_table;
+    struct file **fd_table;
+    void *heap_base;
+    void *heap_end;
     int fd_size;
 #endif
 
