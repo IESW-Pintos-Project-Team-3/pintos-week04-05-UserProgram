@@ -20,8 +20,8 @@
 #include "threads/vaddr.h"
 
 /*File descriptor table size and max size*/
-#define FD_LIMIT 1024 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
-#define FD_SIZE 128
+#define FD_LIMIT 512 //지금은 매크로지만 변수로 하는 것도 좋아보임(필요에 따라 최대 크기를 늘릴 수 있게)
+#define FD_SIZE 8
 #define MAX_ARGS 55
 
 static thread_func start_process NO_RETURN;
@@ -456,6 +456,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
               if (!load_segment (file, file_page, (void *) mem_page,
                                  read_bytes, zero_bytes, writable))
                 goto done;
+              t->heap_base = ROUND_UP(phdr.p_vaddr + phdr.p_memsz, PGSIZE);
+              t->heap_end = t->heap_base;
             }
           else
             goto done;
